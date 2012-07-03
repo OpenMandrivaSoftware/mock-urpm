@@ -35,22 +35,21 @@ make install DESTDIR=$RPM_BUILD_ROOT
 #rm -rf $RPM_BUILD_ROOT
 
 %pre
-#if [ $1 -eq 1 ]; then
-    echo "PRE"
+if [ $1 -eq 1 ]; then
     groupadd -r -f %{name} >/dev/null 2>&1 || :
     if [ ! -z `env|grep SUDO_USER` ]; then
 	usermod -a -G %{name} `env|grep SUDO_USER | cut -f2 -d=` >/dev/null 2>&1 || :
     fi
-#fi
+fi
 
 
 %post
-#if [ $1 -eq 1 ]; then
-  echo "POST"
+if [ $1 -eq 1 ]; then
   ln -s -f %{_datadir}/bash-completion/%{name} %{_sysconfdir}/bash_completion.d/%{name}
 
   arch=$(uname -i)
-  make no difference between *86 architectures
+  
+#make no difference between *86 architectures
   if [[ $arch =~ i.86 ]]; then 
       arch=i586
   fi
@@ -59,11 +58,10 @@ make install DESTDIR=$RPM_BUILD_ROOT
       ln -s -f $cfg %{_sysconfdir}/%{name}/default.cfg
   fi
   ln -s -f %{_bindir}/consolehelper %{_bindir}/%{name} 
-#fi
+fi
 
 %postun
 if [ $1 -eq 0 ]; then
-  echo "POSTUN"
   rm -f %{_sysconfdir}/bash_completion.d/%{name}
   rm -f $cfg %{_sysconfdir}/%{name}/default.cfg
   rm -f %{_bindir}/%{name} 

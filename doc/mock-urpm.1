@@ -1,0 +1,235 @@
+.TH "mock-urpm" "1" "0.7" "Seth Vidal" ""
+.SH "NAME"
+.LP
+mock-urpm \- build SRPMs in a chroot
+.SH "SYNTAX"
+.LP
+mock  [options] \fB\-\-rebuild\fR \fISRPM [\fISRPM...\fR]
+.LP
+mock  [options] \fB\-\-buildsrpm\fR {--spec \fIspec\fR --sources \fIsrc\fR | --scm-enable}
+.LP
+mock  [options] \fB\-\-chroot\fR \fI<cmd>\fR
+.LP
+mock  [options] {\fB\-\-init\fR|\fBclean\fR|\fBshell\fR}
+.LP
+mock  [options] \fB\-\-installdeps\fR {SRPM|RPM}
+.LP
+mock  [options] \fB\-\-install\fR PACKAGE
+.LP
+mock  [options] \fB\-\-update\fR
+.LP
+mock  [options] \fB\-\-orphanskill\fR
+.LP
+mock  [options] \fB\-\-copyin\fR \fIpath [\fIpath...\fR] \fIdestination\fR
+.LP
+mock  [options] \fB\-\-copyout\fR \fIpath [\fIpath...\fR] \fIdestination\fR
+.LP
+mock  [options] \fB\-\-scm-enable\fR [\fI--scm-option key=value ...\fR]
+
+.SH "DESCRIPTION"
+.LP
+Mock-urpm is a simple program that will build source RPMs inside a chroot. It
+doesn't do anything terribly fancy other than populate a chroot with the
+contents specified by a configuration file, then build any input SRPM(s) in
+that chroot.
+.LP
+The content of a chroot is specified by the configuration specified with the
+\fB\-r\fR option. The default configuration file is /etc/mock-urpm/default.cfg,
+which is usually a symlink to one of the installed configurations.
+.LP
+There is a site-wide configuration file, /etc/mock-urpm/site-defaults.cfg, which
+can be used to specify site-wide options. The shipped version of this file has no
+active options, but does have a list of all of the configuration options,
+examples of how to set them, and their default values.
+.LP
+To use mock-urpm, a user should become a member of the \fBmock-urpm\fR group by
+adding their username to the \fBmock-urpm\fR line in /etc/group. This can
+be done with the following command:
+.P
+        \fBsudo /usr/sbin/usermod -a -G mock-urpm $USER\fR
+This command is executed automatically after the packet installation.
+Note that mock is not intended to be run directly as root.
+
+.SH "SCM"
+Using SCM (GIT/CVS/SVN) is really easy. Edit config files (there are examples 
+with comments in site-defaults.cfg). Write the correct 'method' option ('git', 
+'cvs' or 'svn'), write correct 'get' command. Now you can run 
+.P
+	\fBmock-urpm --scm-enable --scm-option package=PKG_NAME --scm-option branch=BRANCH_NAME\fR
+SCM must have a .spec file. Sources can be placed in tarball, but putting '.write_tar' 
+file to the project root will make mock-urpm to create NAME-VERSION.tar.gz archive.
+
+
+.SH "COMMANDS"
+.LP
+.TP
+\fB\-\-clean\fP
+Purge the chroot tree.
+.TP
+\fB\-\-scrub=\fR\fITYPE\fP
+Completely remove the specified chroot or cache dir or all of the chroot and cache.  \fITYPE\fR is one of all, chroot, cache, root-cache or c-cache.
+.TP
+\fB\-\-init\fP
+Initialize a chroot (clean, install chroot packages, etc.)
+.TP
+\fB\-\-rebuild\fP
+If no command is specified, rebuild is assumed. Rebuilds the specified SRPM(s). The buildroot is cleaned first, unless --no-clean is specified.
+.TP
+\fB\-\-buildsrpm\fP
+Builds the specified SRPM either from a spec file and source file/directory or from SCM. The buildroot is cleaned first, unless --no-clean is specified.
+.TP
+\fB\-\-shell\fP
+Run the specified command interactively within the chroot (which must already be initialized -- no 'clean' is performed). If no command specified, /bin/sh is run.
+.TP
+\fB\-\-chroot\fP 
+Run the specified command non-interactively within the chroot (which must already be initialized -- no 'clean' is performed). Command output will be sent to the log files.
+.TP
+\fB\-\-installdeps\fP 
+Find out deps for SRPM or RPM, and do a urpmi install to put them in the buildroot. Buildroot must already be initialized -- no 'clean' is performed
+.TP
+\fB\-\-install\fP
+Do a urpmi install PACKAGE inside the buildroot. Buildroot must already be initialized -- no 'clean' is performed
+.TP
+\fB\-\-update\fP 
+Do a urpmi update inside the buildroot. Buildroot must already be initialized -- no 'clean' is performed
+.TP
+\fB\-\-orphanskill\fP
+No-op mode that simply checks that no stray processes are running in the chroot. Kills any processes that it finds using specified root.
+.TP
+\fB\-\-copyin\fP
+Copies the source paths (files or directory trees) into the chroot at
+the specified destination path. 
+.TP
+\fB\-\-copyout\fP
+Copies the source paths (files or directory trees) from the chroot to
+the specified destination path. 
+.TP
+\fB\-\-scm-enable\fP
+Enable building from an SCM (CVS/Git/SVN). The SCM repository must be
+configured in site-defaults.cfg before SCM checkouts are possible. SCM
+package and branch can be defined with \fB\-\-scm-option\fP arguments,
+see site-defaults.cfg for more information.
+
+
+.SH "OPTIONS"
+.LP
+.TP
+\fB\-r\fR \fICHROOT\fP, \fB\-\-root\fR=\fICHROOT\fP
+Uses specified chroot configuration as defined in
+/etc/mock/<\fIchroot\fP>.cfg. If none specified, uses the chroot linked
+to by /etc/mock/default.cfg
+.TP
+\fB\-\-no\-clean\fR
+Do not clean chroot before building package.
+.TP
+\fB\-\-cleanup\-after\fR
+Clean chroot after building. Use with \-\-resultdir. Only active for '\-\-rebuild'.
+.TP
+\fB\-\-no\-cleanup\-after\fR
+Don't clean chroot after building. If automatic cleanup is enabled, use this to disable.
+.TP
+\fB\-\-target=\fR\fIARCH\fP
+This argument is passed to rpmbuild to specify the target arch to build. It defaults to whatever is specified for --arch, or whatever is specified in the config file as config_opts['target_arch'].
+.TP
+\fB\-\-arch=\fR\fIARCH\fP
+Calls the linux personality() syscall to tell the kernel to emulate a secondary architecture. For example, building i386 packages on an x86_64 buildhost.
+.TP
+\fB\-D \fR"\fIMACRO EXPR\fP", \fB\-\-define=\fR"\fIMACRO EXPR\fP"
+Specify macro definitions used for the build.  This option may be used multiple times, just as the rpmbuild \-\-define option can be.  For example:
+
+\fB\-\-define "with_extra_cheese 1" \-\-define="packager Monkey"\fR
+.TP
+\fB\-\-with=\fR\fIOPTION\fP
+Enable configure OPTION for build.  This option may be used multiple times.  For example:
+
+\fB\-\-with=extra_cheese\fR
+.TP
+\fB\-\-without=\fR\fIOPTION\fP
+Disable configure OPTION for build.  This option may be used multiple times.  For example:
+
+\fB\-\-without=anchovies\fR
+.TP
+\fB\-\-resultdir=\fR\fIRESULTDIR\fP
+Change directory where resulting files (RPMs and build logs) are written. Resultdir can contain python-string substitutions for any variable in the chroot config. For example:
+
+\fB\-\-resultdir=./my/"%(dist)s"/"%(target_arch)s"/\fR
+.TP
+\fB\-\-uniqueext=\fR\fItext\fP
+Arbitrary, unique extension to append to buildroot directory name
+.TP
+\fB\-\-configdir=\fR\fICONFIGDIR\fP
+Change directory where config files are found
+.TP
+\fB\-\-rpmbuild_timeout=\fR\fISECONDS\fP
+Fail build if rpmbuild takes longer than 'timeout' seconds
+.TP
+\fB\-\-unpriv\fR
+Drop privileges before running command when using --chroot
+.TP
+\fB\-\-cwd=\fR\fIDIR\fP
+Change to the specified directory (relative to the chroot) before running command when using --chroot
+.TP
+\fB\-q\fR, \fB\-\-quiet\fR
+Be quiet.
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+Output verbose progress information.
+.TP
+\fB\-\-trace\fR
+Enables verbose tracing of function enter/exit with function arguments and return codes. Useful for debugging mock itself.
+.TP
+\fB\-\-enable\-plugin=\fR\fIPLUGIN\fP
+Enable the specified plugin.  This option may be used multiple times.
+.TP
+\fB\-\-disable\-plugin=\fR\fIPLUGIN\fP
+Disable the specified plugin.  This option may be used multiple times.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Show usage information and exit.
+.TP
+\fB\-\-version\fR
+Show version number and exit.
+
+
+.SH "FILES"
+.LP
+\fI/etc/mock-urpm/\fP \- default configuration directory
+.LP
+\fI/var/lib/mock-urpm\fP \- directory where chroots are created
+.SH "EXAMPLES"
+.LP
+To rebuild test.src.rpm using the configuration for x86_64 named "my_configuration"
+.LP
+.RS 5
+\fBmock -r my_configuration-x86_64 --rebuild /path/to/test.src.rpm
+.RE
+.LP
+Note that the available configurations are found in the /etc/mock-urpm
+directory with the extension .cfg. To specify a configuration use the
+filename without the trailing .cfg extension.
+.LP
+To place the output RPMs and logs in a specified location.
+.LP
+.RS 5
+\fBmock --resultdir=./my-results /path/to/your.src.rpm\fR
+.RE
+.LP
+To build a package from the default SCM repository configured in site-defaults.cfg use the following arguments.
+.LP
+.RS 5
+\fBmock --scm-enable --scm-option package=pkg\fR
+.RE
+.SH "AUTHORS"
+.LP
+Michael Brown <mebrown@michaels-house.net>
+.LP
+Clark Williams <williams@redhat.com>
+.LP
+Seth Vidal <skvidal@linux.duke.edu>
+.LP
+Modification for URPM-based distributions:
+Anton Kirilenko <anton.kirilenko@rosalab.ru>
+.SH "SEE ALSO"
+.LP
+rpmbuild(8)
+http://fedoraproject.org/wiki/Projects/Mock
