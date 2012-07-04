@@ -526,14 +526,17 @@ def do_buildsrpm(config_opts, chroot, options, args):
             chroot.clean()
         raise
 
-def rootcheck():
+def rootcheck(raise_exception=True):
     "verify mock-urpm was started correctly (either by sudo or consolehelper)"
     # if we're root due to sudo or consolehelper, we're ok
     # if not raise an exception and bail
-    if os.getuid() == 0 and not (os.environ.get("SUDO_UID") or os.environ.get("USERHELPER_UID")):
-        raise RuntimeError, "mock-urpm will not run from the root account (needs an unprivileged uid so it can drop privs)"
+    res = (os.getuid() == 0 and not (os.environ.get("SUDO_UID") or os.environ.get("USERHELPER_UID")))
+    if res:
+        if raise_exception:
+            raise RuntimeError, "mock-urpm will not run from the root account (needs an unprivileged uid so it can drop privs)"
+    return res
 
-def groupcheck():
+def groupcheck(raise_exception=True):
     "verify that the user running mock-urpm is part of the mock-urpm group"
     # verify that we're in the mock-urpm group (so all our uid/gid manipulations work)
     inmockgrp = False
@@ -544,8 +547,11 @@ def groupcheck():
         if name == "mock-urpm":
             inmockgrp = True
             break
-    if not inmockgrp:
-        raise RuntimeError, "Must be member of 'mock-urpm' group to run mock! (%s)" % members
+    if raise_exception:       
+        if not inmockgrp:
+            raise RuntimeError, "Must be member of 'mock-urpm' group to run mock! (%s)" % members
+    else:
+        return inmockgrp
 
 def main(ret):
     "Main executable entry point."
@@ -857,11 +863,52 @@ def main(ret):
 
     chroot.state("end")
 
+def _tmp_fix_installation():
+    
+    # check 'mock-urpm' group
+    
+    if os.getuid() != 0:
+        print "You should have sudo rights to run mock-urpm."
+        exit(1)
+    rootcheck()    
+    
+    ingroup = groupcheck(raise_exception=False)
+    if not ingroup:
+        os.system('groupadd -r -f mock-urpm')
+        os.system('usermod -a -G mock-urpm `env|grep SUDO_USER | cut -f2 -d=` ')
+        
+    
+    #create symlinks
+    if not os.path.exists('/etc/bash_completion.d/mock-urpm'):
+        os.symlink('/usr/share/bash-completion/mock-urpm', '/etc/bash_completion.d/mock-urpm')
+    if not os.path.exists('/usr/bin/mock-urpm'):
+        os.symlink('/usr/bin/consolehelper', '/usr/bin/mock-urpm')
+        
+    # set default configuration file
+    if not os.path.exists('/etc/mock-urpm/default.cfg'):
+        files = os.listdir('/etc/mock-urpm/')
+        print 'Avaliable configurations: '
+        out = []
+        for f in files:
+            if not f.endswith('.cfg'):
+                continue
+            out.append(f[:-4])
+        
+        print ', '.join(out)
+        res = None
+        while res not in out:
+            if res is not None:
+                print '"%s" is not a valid configuration.' % res
+            res = raw_input('Select one (it will be remembered): ')
+        os.symlink('/etc/mock-urpm/%s.cfg' % res, '/etc/mock-urpm/default.cfg')
+    
+    
 
 if __name__ == '__main__':
     # fix for python 2.4 logging module bug:
     logging.raiseExceptions = 0
-
+    _tmp_fix_installation()
+    
     exitStatus = 0
     killOrphans = 1
 
@@ -885,7 +932,6 @@ if __name__ == '__main__':
             print
         else:
             raise
-
     except (KeyboardInterrupt,):
         exitStatus = 7
         log.error("Exiting on user interrupt, <CTRL>-C")
