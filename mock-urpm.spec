@@ -7,7 +7,7 @@ Release: 10
 License: GPLv2+
 Group: Development/Other
 Source: %{name}-%{version}.tar.gz
-URL: http://wiki.mandriva.com/en/Mock-urpm
+URL: http://wiki.rosalab.ru/en/index.php/Mock-urpm
 
 BuildArch: noarch
 Requires: tar
@@ -22,7 +22,7 @@ BuildRequires: shadow-utils
 BuildRoot:  %{name}-%{version}
 
 %description
-Mock takes an SRPM and builds it in a chroot
+Mock-urpm takes an SRPM and builds it in a chroot
 
 %prep
 %setup -q -n %{name}-%{version}
