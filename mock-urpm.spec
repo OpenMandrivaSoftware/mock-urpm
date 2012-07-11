@@ -3,7 +3,7 @@
 Summary: Builds packages inside chroots
 Name: mock-urpm
 Version: 1.1.12
-Release: 10
+Release: 11
 License: GPLv2+
 Group: Development/Other
 Source: %{name}-%{version}.tar.gz
@@ -17,6 +17,8 @@ Requires: python-decoratortools
 Requires: usermode-consoleonly
 Requires: shadow-utils
 Requires: coreutils
+Requires: python-rpm
+Requires: rpm-build
 BuildRequires: python-devel
 BuildRequires: shadow-utils
 BuildRoot:  %{name}-%{version}
@@ -28,10 +30,10 @@ Mock-urpm takes an SRPM and builds it in a chroot
 %setup -q -n %{name}-%{version}
 
 %install
-make install DESTDIR=$RPM_BUILD_ROOT
-
-#%clean
-#rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=%{buildroot}
+mkdir -p %{buildroot}/%{_bindir}
+ln -s %{_bindir}/consolehelper %{buildroot}/%{_bindir}/%{name}
+ln -s %{_datadir}/bash-completion/%{name} %{buildroot}/%{_sysconfdir}/bash_completion.d/%{name}
 
 %pre
 if [ $1 -eq 1 ]; then #first install
@@ -41,30 +43,23 @@ if [ $1 -eq 1 ]; then #first install
     fi
 fi
 
-
-%post
-if [ $1 -eq 1 ]; then #first install
-  ln -s -f %{_datadir}/bash-completion/%{name} %{_sysconfdir}/bash_completion.d/%{name}
-  ln -s -f %{_bindir}/consolehelper %{_bindir}/%{name} 
-fi
-
 %postun
 if [ $1 -eq 0 ]; then # complete removing
-  rm -f %{_sysconfdir}/bash_completion.d/%{name}
-  rm -f $cfg %{_sysconfdir}/%{name}/default.cfg
-  rm -f %{_bindir}/%{name} 
+  rm -f %{_sysconfdir}/%{name}/default.cfg
   groupdel %{name} >/dev/null 2>&1 || :
 fi
 
 %files
-%defattr(-,root,root,-)
+#%defattr(-,root,root,-)
 
 # executables
 %{_sbindir}/%{name}
+%{_bindir}/%{name}
 
 #consolehelper and PAM
 %{_sysconfdir}/pam.d/%{name}
 %{_sysconfdir}/security/console.apps/%{name}
+
 
 # python stuff
 %dir %{python_sitelib}/%{modname}
@@ -72,8 +67,8 @@ fi
 %{python_sitelib}/%{modname}/*.pyc
 
 #bash_completion files
-#%{_sysconfdir}/bash_completion.d/%{name}
 %{_datadir}/bash-completion/%{name} 
+%{_sysconfdir}/bash_completion.d/%{name}
 
 # config files
 %config %{_sysconfdir}/%{name}/logging.ini
