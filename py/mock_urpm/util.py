@@ -124,7 +124,7 @@ def orphansKill(rootToKill, killsig=SIGTERM):
 decorate(traceLog())
 def yieldSrpmHeaders(srpms, plainRpmOk=0):
     ts = rpm.TransactionSet()
-    ts.setVSFlags(rpm.RPMVSF_NOHDRCHK|rpm.RPMVSF_NOSHA1HEADER|rpm.RPMVSF_NODSAHEADER|rpm.RPMVSF_NORSAHEADER|rpm.RPMVSF_NOMD5|rpm.RPMVSF_NODSA|rpm.RPMVSF_NORSA|rpm._RPMVSF_NODIGESTS|rpm._RPMVSF_NOSIGNATURES)
+    ts.setVSFlags(rpm.RPMVSF_NOHDRCHK|rpm.RPMVSF_NOSHA1HEADER|rpm.RPMVSF_NODSAHEADER|rpm.RPMVSF_NORSAHEADER|rpm.RPMVSF_NOMD5|rpm.RPMVSF_NODSA|rpm.RPMVSF_NORSA)
     for srpm in srpms:
         try:
             fd = os.open(srpm, os.O_RDONLY) 

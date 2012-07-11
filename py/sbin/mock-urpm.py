@@ -892,6 +892,8 @@ def _tmp_fix_installation():
         for f in files:
             if not f.endswith('.cfg'):
                 continue
+            if f == 'site-defaults.cfg':
+                continue
             out.append(f[:-4])
         
         print ', '.join(out)
