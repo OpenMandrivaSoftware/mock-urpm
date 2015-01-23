@@ -84,6 +84,7 @@ class Root(object):
         self.use_system_media = config['use_system_media']
         self.urpmi_config_dir = config['urpmi_config_dir']
         self.urpmi_options = config['urpmi_options']
+        self.urpm_options = config['urpm_options']
         #self.builddep_path = config['urpmi_path']
         self.macros = config['macros']
         self.more_buildreqs = config['more_buildreqs']
@@ -159,7 +160,40 @@ class Root(object):
         self._unlock_and_rm_chroot()
         self.chrootWasCleaned = True
         self.unlockBuildRoot()
+        
+    decorate(traceLog())
+    def readdrepo(self):
+            if self.use_system_media:
+                self.root_log.debug("Copying urpmi config...")
+                chrootpath = self.makeChrootPath() + self.urpmi_config_dir
+                mock_urpm.util.rmtree(self.makeChrootPath("/etc/urpmi"), selinux=self.selinux)
+                shutil.copytree(self.urpmi_config_dir, chrootpath)
 
+            self.root_log.debug("Adding media...")
+            urpmicmd = [self.urpmi_addmedia_path]
+            urpmicmd.extend(self.urpm_options.split())
+            urpmicmd.extend(('--urpmi-root', self.makeChrootPath()))
+
+            for medium in self.urpmi_media:
+                self.root_log.debug( "Adding medium %s: %s" %(medium, self.urpmi_media[medium]))
+                try:
+                    mock_urpm.util.do(urpmicmd + [medium, self.urpmi_media[medium]], returnOutput=1, verbose=self.verbose)
+                except mock_urpm.exception.Error, e:
+                    raise mock_urpm.exception.UrpmiError, str(e)
+
+            urpmicmd += ['--distrib']
+            for medium in self.urpmi_media_distrib:
+                self.root_log.debug( "Adding distrib media from %s" %medium)
+                try:
+                    mock_urpm.util.do(urpmicmd + [medium], returnOutput=0, verbose=self.verbose)
+                except mock_urpm.exception.Error, e:
+                    raise mock_urpm.exception.UrpmiError, str(e)
+
+            c = ['urpmi.update', '-a',  '--urpmi-root', self.makeChrootPath()]
+            c.extend(self.urpm_options.split())
+            mock_urpm.util.do(c, returnOutput=1, verbose=self.verbose)                
+                
+###################
     decorate(traceLog())
     def _unlock_and_rm_chroot(self):
         if not os.path.exists(self.basedir):
@@ -252,7 +286,7 @@ class Root(object):
     decorate(traceLog())
     def _init(self):
         self.state("init")
-
+        
         # NOTE: removed the following stuff vs mock-urpm v0:
         #   --> /etc/ is no longer 02775 (new privs model)
         #   --> no /etc/yum.conf symlink (F7 and above)
@@ -304,10 +338,10 @@ class Root(object):
 
         # touch files
         self.root_log.debug('touch required files')
-        for item in [self.makeChrootPath('etc', 'mtab'),
-                     self.makeChrootPath('etc', 'fstab')]:
-        ###             self.makeChrootPath('var', 'log', 'yum.log')]:
-            mock_urpm.util.touch(item)
+        mtab = self.makeChrootPath('etc', 'mtab')
+        if not os.path.islink(mtab):
+            mock_urpm.util.touch(mtab)
+        mock_urpm.util.touch(self.makeChrootPath('etc', 'fstab'))
 
 
         if self.chrootWasCleaned:
@@ -318,12 +352,13 @@ class Root(object):
             
             self.root_log.debug("Adding media...")
             urpmicmd = [self.urpmi_addmedia_path]
+            urpmicmd.extend(self.urpm_options.split())
             urpmicmd.extend(('--urpmi-root', self.makeChrootPath()))
             
             for medium in self.urpmi_media:
                 self.root_log.debug( "Adding medium %s: %s" %(medium, self.urpmi_media[medium]))
                 try:
-                    mock_urpm.util.do(urpmicmd + [medium, self.urpmi_media[medium]], returnOutput=1)
+                    mock_urpm.util.do(urpmicmd + [medium, self.urpmi_media[medium]], returnOutput=1, verbose=self.verbose)
                 except mock_urpm.exception.Error, e:
                     raise mock_urpm.exception.UrpmiError, str(e)
             
@@ -331,12 +366,13 @@ class Root(object):
             for medium in self.urpmi_media_distrib:
                 self.root_log.debug( "Adding distrib media from %s" %medium)
                 try:
-                    mock_urpm.util.do(urpmicmd + [medium], returnOutput=0)
+                    mock_urpm.util.do(urpmicmd + [medium], returnOutput=0, verbose=self.verbose)
                 except mock_urpm.exception.Error, e:
                     raise mock_urpm.exception.UrpmiError, str(e)
             
             c = ['urpmi.update', '-a',  '--urpmi-root', self.makeChrootPath()]
-            mock_urpm.util.do(c, returnOutput=1)
+            c.extend(self.urpm_options.split())
+            mock_urpm.util.do(c, returnOutput=1, verbose=self.verbose)
             
         
         
@@ -355,21 +391,6 @@ class Root(object):
         ###except OSError:
         ###    pass
         ###os.symlink('yum/yum.conf', self.makeChrootPath("etc", "yum.conf"))
-
-        # set up resolver configuration
-
-        if self.use_host_resolv:
-            etcdir = self.makeChrootPath('etc')
-
-            resolvconfpath = self.makeChrootPath('etc', 'resolv.conf')
-            if os.path.exists(resolvconfpath):
-                os.remove(resolvconfpath)
-            shutil.copy2('/etc/resolv.conf', etcdir)
-
-            hostspath = self.makeChrootPath('etc', 'hosts')
-            if os.path.exists(hostspath):
-                os.remove(hostspath)
-            shutil.copy2('/etc/hosts', etcdir)
 
         if gotuuid:
             # Anything that tries to use libdbus inside the chroot will require this
@@ -418,6 +439,21 @@ class Root(object):
 
             # done with init
             self._callHooks('postinit')
+            # set up resolver configuration
+
+            if self.use_host_resolv:
+                self.root_log.debug("Copying /etc/resolv.conf ...")
+                etcdir = self.makeChrootPath('etc')
+                resolvconfpath = self.makeChrootPath('etc', 'resolv.conf')
+                if os.path.exists(resolvconfpath):
+                    os.remove(resolvconfpath)
+                shutil.copy2('/etc/resolv.conf', etcdir)
+
+                self.root_log.debug("Copying /etc/hosts ...")
+                hostspath = self.makeChrootPath('etc', 'hosts')
+                if os.path.exists(hostspath):
+                    os.remove(hostspath)
+                shutil.copy2('/etc/hosts', etcdir)
         finally:
             self._umountall()
         self.unlockBuildRoot()
@@ -449,7 +485,7 @@ class Root(object):
             if self.selinux:
                 mock_urpm.util.do(
                     ["chcon", "--reference=/%s"% i[2], self.makeChrootPath(i[2])]
-                    , raiseExc=0, shell=False)
+                    , raiseExc=0, shell=False, verbose=self.verbose)
 
         os.symlink("/proc/self/fd/0", self.makeChrootPath("dev/stdin"))
         os.symlink("/proc/self/fd/1", self.makeChrootPath("dev/stdout"))
@@ -491,7 +527,7 @@ class Root(object):
     def doChroot(self, command, env="", shell=True, returnOutput=False, *args, **kargs):
         """execute given command in root"""
         return mock_urpm.util.do(command, chrootPath=self.makeChrootPath(),
-                            returnOutput=returnOutput, shell=shell, *args, **kargs )
+                            returnOutput=returnOutput, shell=shell, verbose=self.verbose, *args, **kargs )
 
     decorate(traceLog())
     def urpmInstall(self, *rpms):
@@ -521,7 +557,7 @@ class Root(object):
             self.uidManager.becomeUser(0, 0)
 
             def _urpmi_and_check(cmd):
-                output = self._urpmi(cmd, returnOutput=1)
+                output = self._urpmi_chroot(cmd, returnOutput=1)
                 for line in output.split('\n'):
                     if line.lower().find('No Package found for'.lower()) != -1:
                         raise mock_urpm.exception.BuildError, "Bad build req: %s. Exiting." % line
@@ -538,9 +574,10 @@ class Root(object):
                 _urpmi_and_check(args)
                 # nothing made us exit, so we continue
                 args[0] = '--auto'
-                self._urpmi(args, returnOutput=1)
+                self._urpmi_chroot(args, returnOutput=1)
 
             # install actual build dependencies
+            srpms = [x.replace(self.makeChrootPath(), '') for x in srpms]
             _urpmi_and_check(['--buildrequires', '--auto'] + list(srpms))
         finally:
             self.uidManager.restorePrivs()
@@ -596,6 +633,7 @@ class Root(object):
                 raise mock_urpm.exception.PkgError, "Expected to find single rebuilt srpm, found %d." % len(rebuiltSrpmFile)
 
             rebuiltSrpmFile = rebuiltSrpmFile[0]
+
             self.installSrpmDeps(rebuiltSrpmFile)
 
             #have to permanently drop privs or rpmbuild regains them
@@ -637,7 +675,7 @@ class Root(object):
     #       -> except hooks. :)
     #
     decorate(traceLog())
-    def buildsrpm(self, spec, sources, timeout):
+    def buildsrpm(self, spec, sources, timeout, raiseExc=False):
         """build an srpm, capture log"""
 
         # tell caching we are building
@@ -656,7 +694,7 @@ class Root(object):
 
             if os.path.isdir(sources):
                 os.rmdir(self.makeChrootPath(self.builddir, "SOURCES"))
-                shutil.copytree(sources, self.makeChrootPath(self.builddir, "SOURCES"))
+                shutil.copytree(sources, self.makeChrootPath(self.builddir, "SOURCES"), symlinks=True)
             else:
                 shutil.copy(sources, self.makeChrootPath(self.builddir, "SOURCES"))
 
@@ -694,11 +732,12 @@ class Root(object):
 
             # tell caching we are done building
             self._callHooks('postbuild')
-
-            try:
-                return resultSrpmFile
-            except:
-                return None
+            
+            if not raiseExc:
+                try:
+                    return resultSrpmFile
+                except:
+                    return None
 
 
 
@@ -745,7 +784,7 @@ class Root(object):
         """mount 'normal' fs like /dev/ /proc/ /sys"""
         for cmd in self.mountCmds:
             self.root_log.debug(cmd)
-            mock_urpm.util.do(cmd, shell=True)
+            mock_urpm.util.do(cmd, shell=True, verbose=self.verbose)
 
     decorate(traceLog())
     def _umountall(self):
@@ -753,7 +792,7 @@ class Root(object):
         # first try removing all expected mountpoints.
         for cmd in reversed(self.umountCmds):
             try:
-                mock_urpm.util.do(cmd, raiseExc=1, shell=True)
+                mock_urpm.util.do(cmd, raiseExc=1, shell=True, verbose=self.verbose)
             except mock_urpm.exception.Error, e:
                 # the exception already contains info about the error.
                 self.root_log.warning(e)
@@ -767,13 +806,13 @@ class Root(object):
             if os.path.realpath(mountpoint).startswith(os.path.realpath(self.makeChrootPath()) + "/"):
                 cmd = "umount -n %s" % mountpoint
                 self.root_log.warning("Forcibly unmounting '%s' from chroot." % mountpoint)
-                mock_urpm.util.do(cmd, raiseExc=0, shell=True)
+                mock_urpm.util.do(cmd, raiseExc=0, shell=True, verbose=self.verbose)
 
     decorate(traceLog())
     def _show_path_user(self, path):
         cmd = ['/sbin/fuser', '-a', '-v', path]
         self.root_log.debug("using 'fuser' to find users of %s" % path)
-        out = mock_urpm.util.do(cmd, returnOutput=1, raiseExc=False)
+        out = mock_urpm.util.do(cmd, returnOutput=1, raiseExc=False, verbose=self.verbose)
         self.root_log.debug(out)
         return out
 
@@ -803,11 +842,48 @@ class Root(object):
         try:
             self._callHooks("preurpmi")
 
-            output = mock_urpm.util.do(urpmicmd, returnOutput=returnOutput, quiet=q)
+            output = mock_urpm.util.do(urpmicmd, returnOutput=returnOutput, quiet=q, verbose=self.verbose)
             self._callHooks("posturpmi")
             return output
         except mock_urpm.exception.Error, e:
             raise mock_urpm.exception.UrpmiError, str(e)
+####new
+    decorate(traceLog())
+    def _urpmi_chroot(self, cmd, returnOutput=0):
+        """use urpmi to install packages/package groups into the chroot"""
+        urpmicmd = [self.urpmi_path]
+        urpmicmd.extend(self.urpmi_options.split())
+        #cmdix = 0
+        # invoke yum-builddep instead of yum if cmd is builddep
+        #if cmd[0] == "--buildrequires":
+        #    urpmicmd[0] = self.builddep_path
+        #    cmdix = 1
+#        urpmicmd.extend(('--root', self.makeChrootPath()))
+#        self.chrootpathx = self.makeChrootPath()
+        urpmicmd.insert(0, self.makeChrootPath())
+        urpmicmd.insert(0, '/usr/sbin/chroot')
+        print urpmicmd
+#        urpmicmd.extend(('--urpmi-root', self.makeChrootPath()))
+        # TODO: urpmicmd.extend(('--urpmi-root', self.makeChrootPath()))
+
+        ###if not self.online:
+        ###    urpmicmd.append("-C")
+        urpmicmd.extend(cmd[:])
+        self.root_log.debug(urpmicmd)
+        output = ""
+        if self.verbose == 0:
+            q = True
+        else:
+            q = False
+        try:
+            self._callHooks("preurpmi")
+
+            output = mock_urpm.util.do(urpmicmd, returnOutput=returnOutput, quiet=q, verbose=self.verbose)
+            self._callHooks("posturpmi")
+            return output
+        except mock_urpm.exception.Error, e:
+            raise mock_urpm.exception.UrpmiError, str(e)
+####new
 
     decorate(traceLog())
     def _makeBuildUser(self):

@@ -27,6 +27,7 @@
            mock-urpm [options] --installdeps {SRPM|RPM}
            mock-urpm [options] --install PACKAGE
            mock-urpm [options] --copyin path [..path] destination
+           mock-urpm [options] --readdrepo
            mock-urpm [options] --copyout path [..path] destination
            mock-urpm [options] --scm-enable [--scm-option key=value]
 """
@@ -43,6 +44,7 @@ import sys
 import time
 from optparse import OptionParser
 from glob import glob
+import pwd
 
 import locale
 locale.setlocale(locale.LC_ALL, '')
@@ -122,6 +124,10 @@ def command_parse(config_opts):
     parser.add_option("--copyin", action="store_const", const="copyin",
                       dest="mode",
                       help="Copy file(s) into the specified chroot")
+
+    parser.add_option("--readdrepo", action="store_const", const="readdrepo",
+                      dest="mode",
+                      help="Add repositories from default config from scratch")      
 
     parser.add_option("--copyout", action="store_const", const="copyout",
                       dest="mode",
@@ -504,7 +510,7 @@ def do_buildsrpm(config_opts, chroot, options, args):
             chroot.clean()
         chroot.init()
 
-        srpm = chroot.buildsrpm(spec=options.spec, sources=options.sources, timeout=config_opts['rpmbuild_timeout'])
+        srpm = chroot.buildsrpm(spec=options.spec, sources=options.sources, timeout=config_opts['rpmbuild_timeout'], raiseExc=True)
         elapsed = time.time() - start
         log.info("Done(%s) Config(%s) %d minutes %d seconds"
             % (os.path.basename(options.spec), config_opts['chroot_name'], elapsed//60, elapsed%60))
@@ -539,19 +545,20 @@ def rootcheck(raise_exception=True):
 def groupcheck(raise_exception=True):
     "verify that the user running mock-urpm is part of the mock-urpm group"
     # verify that we're in the mock-urpm group (so all our uid/gid manipulations work)
-    inmockgrp = False
-    members = []
-    for g in os.getgroups():
-        name = grp.getgrgid(g).gr_name
-        members.append(name)
-        if name == "mock-urpm":
-            inmockgrp = True
-            break
+    sudo_user = None
+    if 'SUDO_USER' in os.environ:
+        sudo_user = os.environ['SUDO_USER']
+    elif 'USERHELPER_UID' in os.environ:
+        sudo_user = pwd.getpwuid(int(os.environ['USERHELPER_UID'])).pw_name
+    else:
+        sudo_user = pwd.getpwuid(os.geteuid()).pw_name
+         
+    groups = [x.gr_name for x in grp.getgrall() if sudo_user in x.gr_mem]
+    inmockgrp = 'mock-urpm' in groups
     if raise_exception:       
         if not inmockgrp:
-            raise RuntimeError, "Must be member of 'mock-urpm' group to run mock! (%s)" % members
-    else:
-        return inmockgrp
+            raise RuntimeError, "Must be member of 'mock-urpm' group to run mock!"
+    return (inmockgrp, sudo_user)
 
 def main(ret):
     "Main executable entry point."
@@ -608,6 +615,11 @@ def main(ret):
     config_path = MOCKCONFDIR
     if options.configdir:
         config_path = options.configdir
+        
+    uidManager._becomeUser(0, 0)
+    fix_configs(config_path)
+    uidManager._becomeUser(unprivUid, unprivGid)
+    
 
     # array to save config paths
     config_opts['config_paths'] = []
@@ -818,6 +830,8 @@ def main(ret):
 
     elif options.mode == 'orphanskill':
         mock_urpm.util.orphansKill(chroot.makeChrootPath())
+    elif options.mode == 'readdrepo':    
+        chroot.readdrepo()       
     elif options.mode == 'copyin':
         chroot.tryLockBuildRoot()
         chroot._resetLogging()
@@ -863,30 +877,10 @@ def main(ret):
 
     chroot.state("end")
 
-def _tmp_fix_installation():
-    
-    # check 'mock-urpm' group
-    
-    if os.getuid() != 0:
-        print "You should have sudo rights to run mock-urpm."
-        exit(1)
-    rootcheck()    
-    
-    ingroup = groupcheck(raise_exception=False)
-    if not ingroup:
-        os.system('groupadd -r -f mock-urpm')
-        os.system('usermod -a -G mock-urpm `env|grep SUDO_USER | cut -f2 -d=` ')
-        
-    
-    #create symlinks
-    if not os.path.exists('/etc/bash_completion.d/mock-urpm'):
-        os.symlink('/usr/share/bash-completion/mock-urpm', '/etc/bash_completion.d/mock-urpm')
-    if not os.path.exists('/usr/bin/mock-urpm'):
-        os.symlink('/usr/bin/consolehelper', '/usr/bin/mock-urpm')
-        
+def fix_configs(config_path):
     # set default configuration file
-    if not os.path.exists('/etc/mock-urpm/default.cfg'):
-        files = os.listdir('/etc/mock-urpm/')
+    if not os.path.exists(config_path + '/default.cfg'):
+        files = os.listdir(config_path)
         print 'Avaliable configurations: '
         out = []
         for f in files:
@@ -902,14 +896,32 @@ def _tmp_fix_installation():
             if res is not None:
                 print '"%s" is not a valid configuration.' % res
             res = raw_input('Select one (it will be remembered): ')
-        os.symlink('/etc/mock-urpm/%s.cfg' % res, '/etc/mock-urpm/default.cfg')
+        os.symlink(config_path + '/%s.cfg' % res, config_path + '/default.cfg')
+        
+def fix_group():
+    # check 'mock-urpm' group
+    if os.getuid() != 0:
+        print "You should have sudo rights to run mock-urpm."
+        exit(1)
+    rootcheck()    
     
+    ingroup, sudo_user = groupcheck(raise_exception=False)
+    if not ingroup:
+        os.system('groupadd -r -f mock-urpm')
+        print 'Adding user %s to group mock-urpm...' % sudo_user
+        os.system('usermod -a -G mock-urpm ' + sudo_user)   
     
-
+    #create symlinks
+    if not os.path.exists('/etc/bash_completion.d/mock-urpm'):
+        os.symlink('/usr/share/bash-completion/mock-urpm', '/etc/bash_completion.d/mock-urpm')
+    if not os.path.exists('/usr/bin/mock-urpm'):
+        os.symlink('/usr/bin/consolehelper', '/usr/bin/mock-urpm')
+        
+        
 if __name__ == '__main__':
     # fix for python 2.4 logging module bug:
     logging.raiseExceptions = 0
-    _tmp_fix_installation()
+    fix_group()
     
     exitStatus = 0
     killOrphans = 1

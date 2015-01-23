@@ -18,6 +18,7 @@ import time
 import errno
 import re
 import sys
+from signal import SIGTERM
 
 # our imports
 import mock_urpm.exception
@@ -104,7 +105,7 @@ def rmtree(path, *args, **kargs):
             else:
                 raise
 
-from signal import SIGTERM
+
 decorate(traceLog())
 def orphansKill(rootToKill, killsig=SIGTERM):
     """kill off anything that is still chrooted."""
@@ -196,6 +197,7 @@ def condChroot(chrootPath):
         os.chdir(chrootPath)
         os.chroot(chrootPath)
         uid.setresuid(saved['ruid'], saved['euid'])
+        
 
 def condChdir(cwd):
     if cwd is not None:
@@ -206,7 +208,7 @@ def condDropPrivs(uid, gid):
         os.setregid(gid, gid)
     if uid is not None:
         os.setreuid(uid, uid)
-
+        
 def condPersonality(per=None):
     if per is None or per in ('noarch',):
         return
@@ -217,7 +219,7 @@ def condPersonality(per=None):
         raise OSError(_errno.value, os.strerror(_errno.value))
 
 
-def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False):
+def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False, verbose=False):
     output=""
     done = 0
 
@@ -263,11 +265,12 @@ def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False):
                     res = re_progress.match(line)
                     if res:
                         (n, of, name) = res.groups()
-                        if name=='ccache' and of == '1':
+                        if name=='ccache' and of == '1' and not verbose:
                             __write('Installing ccache', newline=True)
                         else:
                             need_erase = True
-                            __write('Installing [%s/%s]: %s' % (n, of, name))
+                            if not verbose:
+                                __write('Installing [%s/%s]: %s' % (n, of, name), newline=nl)
                             
                 for h in logger.handlers:
                     h.flush()
@@ -297,12 +300,13 @@ def selinuxEnabled():
 #
 
 decorate(traceLog())
-def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, uid=None, gid=None, personality=None, quiet=False, *args, **kargs):
+def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, uid=None, gid=None, personality=None, quiet=False, verbose=False, *args, **kargs):
     
     logger = kargs.get("logger", getLog())
     output = ""
     start = time.time()
     preexec = ChildPreExec(personality, chrootPath, cwd, uid, gid)
+    
     try:
         child = None
         logger.debug("Executing command: %s" % command)
@@ -317,7 +321,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
             )
         # use select() to poll for output so we dont block
         output = logOutput([child.stdout, child.stderr],
-                           logger, returnOutput, start, timeout, quiet)
+                           logger, returnOutput, start, timeout, quiet, verbose)
     except:
         # kill children if they arent done
         if child is not None and child.returncode is None:
@@ -346,8 +350,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
         if returnOutput:
             raise mock_urpm.exception.Error, ("Command failed: \n # %s\n%s" % (command, output), child.returncode)
         else:
-            raise mock_urpm.exception.Error, ("Command failed. See logs for output.\n # %s" % (command,), child.returncode)
-    
+            raise mock_urpm.exception.Error, ("Command failed. See logs for output.\n # %s" % (command,), child.returncode)     
     return output
 
 class ChildPreExec(object):
