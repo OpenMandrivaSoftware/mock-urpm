@@ -127,7 +127,7 @@ def command_parse(config_opts):
 
     parser.add_option("--readdrepo", action="store_const", const="readdrepo",
                       dest="mode",
-                      help="Add repositories from default config from scratch")      
+                      help="Add repositories from default config from scratch")
 
     parser.add_option("--copyout", action="store_const", const="copyout",
                       dest="mode",
@@ -216,7 +216,7 @@ def command_parse(config_opts):
     parser.add_option("--scm-option", action="append", dest="scm_opts",
                       default=[], type="string",
                       help="define an SCM option (may be used more than once)")
-    
+
     (options, args) = parser.parse_args()
     if len(args) and args[0] in ('chroot', 'shell',
             'rebuild', 'install', 'installdeps', 'init', 'clean'):
@@ -230,7 +230,7 @@ def command_parse(config_opts):
         options.spec = os.path.expanduser(options.spec)
     if options.sources:
         options.sources = os.path.expanduser(options.sources)
-    
+
     return (options, args)
 
 decorate(traceLog())
@@ -246,10 +246,10 @@ def setup_default_config_opts(config_opts, unprivUid):
     config_opts['log_config_file'] = 'logging.ini'
     config_opts['rpmbuild_timeout'] = 0
     config_opts['chrootuid'] = unprivUid
-    
+
     config_opts['urpmi_path'] = '/usr/sbin/urpmi'
     config_opts['urpmi_addmedia_path'] = '/usr/sbin/urpmi.addmedia'
-    
+
     try:
         config_opts['chrootgid'] = grp.getgrnam("mock-urpm")[2]
     except KeyError:
@@ -302,6 +302,16 @@ def setup_default_config_opts(config_opts, unprivUid):
             'selinux_opts': {},
             }
 
+    config_opts['environment'] = {
+            'TERM': 'vt100',
+            'SHELL': '/bin/bash',
+            'HOME': '/builddir',
+            'HOSTNAME': 'mock',
+            'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
+            'PROMPT_COMMAND': 'printf "\033]0;<mock-chroot>\007<mock-chroot>"',
+            'LANG': 'en_US.UTF-8',
+            }
+
     runtime_plugins = [runtime_plugin
                        for (runtime_plugin, _)
                        in [os.path.splitext(os.path.basename(tmp_path))
@@ -340,7 +350,7 @@ def setup_default_config_opts(config_opts, unprivUid):
         #'%_rpmfilename': '%%{NAME}-%%{VERSION}-%%{RELEASE}.%%{ARCH}.rpm',
         '%_rpmfilename': '%{___NVRA}.rpm',
         }
-    
+
     config_opts['urpmi_media_distrib'] = []
     config_opts['urpmi_media'] = {}
     config_opts['use_system_media'] = True
@@ -410,9 +420,9 @@ def set_config_opts_per_cmdline(config_opts, options, args):
     if options.cleanup_after == True:
         config_opts['cleanup_on_success'] = True
         config_opts['cleanup_on_failure'] = True
-    # cant cleanup unless resultdir is separate from the root dir 
-    rootdir = os.path.join(config_opts['basedir'], config_opts['root']) 
-    if mock_urpm.util.is_in_dir(config_opts['resultdir'] % config_opts, rootdir): 
+    # cant cleanup unless resultdir is separate from the root dir
+    rootdir = os.path.join(config_opts['basedir'], config_opts['root'])
+    if mock_urpm.util.is_in_dir(config_opts['resultdir'] % config_opts, rootdir):
         config_opts['cleanup_on_success'] = False
         config_opts['cleanup_on_failure'] = False
 
@@ -457,11 +467,11 @@ def do_rebuild(config_opts, chroot, srpms):
     if len(srpms) < 1:
         log.critical("No package specified to rebuild command.")
         sys.exit(50)
-    
+
     # check that everything is kosher. Raises exception on error
     for hdr in mock_urpm.util.yieldSrpmHeaders(srpms):
         pass
-    
+
     start = time.time()
     try:
         for srpm in srpms:
@@ -488,7 +498,7 @@ def do_rebuild(config_opts, chroot, srpms):
         ###    cmd.append(chroot.resultdir)
         ###    mock_urpm.util.do(cmd)
         ###    chroot.uidManager.restorePrivs()
-            
+
     except (Exception, KeyboardInterrupt):
         elapsed = time.time() - start
         log.error("Exception(%s) Config(%s) %d minutes %d seconds"
@@ -552,10 +562,10 @@ def groupcheck(raise_exception=True):
         sudo_user = pwd.getpwuid(int(os.environ['USERHELPER_UID'])).pw_name
     else:
         sudo_user = pwd.getpwuid(os.geteuid()).pw_name
-         
+
     groups = [x.gr_name for x in grp.getgrall() if sudo_user in x.gr_mem]
     inmockgrp = 'mock-urpm' in groups
-    if raise_exception:       
+    if raise_exception:
         if not inmockgrp:
             raise RuntimeError, "Must be member of 'mock-urpm' group to run mock!"
     return (inmockgrp, sudo_user)
@@ -611,15 +621,15 @@ def main(ret):
     if options.printrootpath:
         options.verbose = 0
 
-    # config path -- can be overridden on cmdline    
+    # config path -- can be overridden on cmdline
     config_path = MOCKCONFDIR
     if options.configdir:
         config_path = options.configdir
-        
+
     uidManager._becomeUser(0, 0)
     fix_configs(config_path)
     uidManager._becomeUser(unprivUid, unprivGid)
-    
+
 
     # array to save config paths
     config_opts['config_paths'] = []
@@ -633,11 +643,11 @@ def main(ret):
             log.error("Could not find required config file: %s" % cfg)
             if options.chroot == "default": log.error("  Did you forget to specify the chroot to use with '-r'?")
             sys.exit(1)
-        
+
     # configure logging
     config_opts['chroot_name'] = options.chroot
     log_ini = os.path.join(config_path, config_opts["log_config_file"])
-    
+
     if not os.path.exists(log_ini):
         log.error("Could not find required logging config file: %s" % log_ini)
         sys.exit(50)
@@ -696,7 +706,7 @@ def main(ret):
 
     # elevate privs
     uidManager._becomeUser(0, 0)
-    
+
     # do whatever we're here to do
     log.info("mock_urpm.py version %s starting..." % __VERSION__)
     chroot = mock_urpm.backend.Root(config_opts, uidManager)
@@ -724,7 +734,7 @@ def main(ret):
     # set personality (ie. setarch)
     if config_opts['internal_setarch']:
         mock_urpm.util.condPersonality(config_opts['target_arch'])
-    
+
     if options.mode == 'init':
         if config_opts['clean']:
             chroot.clean()
@@ -757,12 +767,12 @@ def main(ret):
 
     elif options.mode == 'chroot':
         shell=False
-        
+
         res = chroot.GetChrootState()
         if res != "initialized":
             log.critical(res)
             sys.exit(50)
-            
+
         if len(args) == 0:
             log.critical("You must specify a command to run")
             sys.exit(50)
@@ -830,8 +840,8 @@ def main(ret):
 
     elif options.mode == 'orphanskill':
         mock_urpm.util.orphansKill(chroot.makeChrootPath())
-    elif options.mode == 'readdrepo':    
-        chroot.readdrepo()       
+    elif options.mode == 'readdrepo':
+        chroot.readdrepo()
     elif options.mode == 'copyin':
         chroot.tryLockBuildRoot()
         chroot._resetLogging()
@@ -889,7 +899,7 @@ def fix_configs(config_path):
             if f == 'site-defaults.cfg':
                 continue
             out.append(f[:-4])
-        
+
         print ', '.join(out)
         res = None
         while res not in out:
@@ -897,32 +907,32 @@ def fix_configs(config_path):
                 print '"%s" is not a valid configuration.' % res
             res = raw_input('Select one (it will be remembered): ')
         os.symlink(config_path + '/%s.cfg' % res, config_path + '/default.cfg')
-        
+
 def fix_group():
     # check 'mock-urpm' group
     if os.getuid() != 0:
         print "You should have sudo rights to run mock-urpm."
         exit(1)
-    rootcheck()    
-    
+    rootcheck()
+
     ingroup, sudo_user = groupcheck(raise_exception=False)
     if not ingroup:
         os.system('groupadd -r -f mock-urpm')
         print 'Adding user %s to group mock-urpm...' % sudo_user
-        os.system('usermod -a -G mock-urpm ' + sudo_user)   
-    
+        os.system('usermod -a -G mock-urpm ' + sudo_user)
+
     #create symlinks
     if not os.path.exists('/etc/bash_completion.d/mock-urpm'):
         os.symlink('/usr/share/bash-completion/mock-urpm', '/etc/bash_completion.d/mock-urpm')
     if not os.path.exists('/usr/bin/mock-urpm'):
         os.symlink('/usr/bin/consolehelper', '/usr/bin/mock-urpm')
-        
-        
+
+
 if __name__ == '__main__':
     # fix for python 2.4 logging module bug:
     logging.raiseExceptions = 0
     fix_group()
-    
+
     exitStatus = 0
     killOrphans = 1
 
