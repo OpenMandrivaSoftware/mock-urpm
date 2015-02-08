@@ -46,8 +46,10 @@ from optparse import OptionParser
 from glob import glob
 import pwd
 
-import locale
-locale.setlocale(locale.LC_ALL, '')
+#FIXME
+#unsetting LC_ALL leads to perl locale warnings
+#import locale
+#locale.setlocale(locale.LC_ALL, '')
 
 # all of the variables below are substituted by the build system
 __VERSION__ = "1.1.12-urpm"
@@ -307,7 +309,7 @@ def setup_default_config_opts(config_opts, unprivUid):
             'SHELL': '/bin/bash',
             'HOME': '/builddir',
             'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
-            'PROMPT_COMMAND': 'printf "mock-chroot"; PS1="@\W>"',
+            'PROMPT_COMMAND': 'PS1="mock-urpm@\W>"',
             'LANG': os.environ.setdefault('LANG', 'en_US.UTF-8'),
             }
 
