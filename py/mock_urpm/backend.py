@@ -78,6 +78,9 @@ class Root(object):
         #self.yum_builddep_path = '/usr/bin/yum-builddep'
 
         self.env = config['environment']
+        proxy_env = mock_urpm.util.get_proxy_environment(config)
+        self.env.update(proxy_env)
+        os.environ.update(proxy_env)
 
         self.urpmi_path = config['urpmi_path']
         self.urpmi_addmedia_path = config['urpmi_addmedia_path']
@@ -320,12 +323,9 @@ class Root(object):
         # set up plugins:
         self._callHooks('preinit')
 
-        # set up environment
-        self.state('Setup environment')
-
-        for key in self.env.keys():
-            value = self.env.get(key)
-            os.environ[key]=value
+        #for key in self.env.keys():
+        #    value = self.env.get(key)
+        #    os.environ[key] = value
         self.root_log.debug(os.environ)
 
         # create skeleton dirs
@@ -534,10 +534,10 @@ class Root(object):
     # bad hack
     # comment out decorator here so we dont get double exceptions in the root log
     #decorate(traceLog())
-    def doChroot(self, command, env="", shell=True, returnOutput=False, *args, **kargs):
+    def doChroot(self, command, env=None, shell=True, returnOutput=False, *args, **kargs):
         """execute given command in root"""
         return mock_urpm.util.do(command, chrootPath=self.makeChrootPath(),
-                            returnOutput=returnOutput, shell=shell, verbose=self.verbose, *args, **kargs )
+                            returnOutput=returnOutput, shell=shell, env=env, verbose=self.verbose, *args, **kargs )
 
     decorate(traceLog())
     def urpmInstall(self, *rpms):
@@ -617,6 +617,7 @@ class Root(object):
             self.doChroot(
                 ["rpm", "-Uvh", "--nodeps", srpmChrootFilename],
                 shell=False,
+                env=self.env,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
                 )
@@ -633,6 +634,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=self.env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -657,6 +659,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bb --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=self.env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -719,6 +722,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=self.env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,

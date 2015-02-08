@@ -128,9 +128,9 @@ def yieldSrpmHeaders(srpms, plainRpmOk=0):
     ts.setVSFlags(rpm.RPMVSF_NOHDRCHK|rpm.RPMVSF_NOSHA1HEADER|rpm.RPMVSF_NODSAHEADER|rpm.RPMVSF_NORSAHEADER|rpm.RPMVSF_NOMD5|rpm.RPMVSF_NODSA|rpm.RPMVSF_NORSA)
     for srpm in srpms:
         try:
-            fd = os.open(srpm, os.O_RDONLY) 
-            hdr = ts.hdrFromFdno(fd) 
-            os.close(fd) 
+            fd = os.open(srpm, os.O_RDONLY)
+            hdr = ts.hdrFromFdno(fd)
+            os.close(fd)
         except (rpm.error), e:
             raise mock_urpm.exception.Error, "Cannot find/open srpm: %s. Error: %s" % (srpm, ''.join(e))
 
@@ -168,7 +168,7 @@ def getAddtlReqs(hdr, conf):
             else:
                 reqlist.extend(more_reqs)
             break
-        
+
     #return rpmUtils.miscutils.unique(reqlist)
     return list(set(reqlist))  # remove duplicates from list
 
@@ -197,7 +197,7 @@ def condChroot(chrootPath):
         os.chdir(chrootPath)
         os.chroot(chrootPath)
         uid.setresuid(saved['ruid'], saved['euid'])
-        
+
 
 def condChdir(cwd):
     if cwd is not None:
@@ -208,7 +208,7 @@ def condDropPrivs(uid, gid):
         os.setregid(gid, gid)
     if uid is not None:
         os.setreuid(uid, uid)
-        
+
 def condPersonality(per=None):
     if per is None or per in ('noarch',):
         return
@@ -231,7 +231,7 @@ def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False, verb
 
     tail = ""
     re_progress = re.compile('^ +(\d+)/(\d+): ([\w-]+) +#+$')
-    
+
     def __write(text, newline=False):
         if quiet:
             return
@@ -239,7 +239,7 @@ def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False, verb
         if newline:
             sys.stdout.write('\n')
         sys.stdout.flush()
-    
+
     need_erase = False
     while not done:
         if (time.time() - start)>timeout and timeout!=0:
@@ -271,7 +271,7 @@ def logOutput(fds, logger, returnOutput=1, start=0, timeout=0, quiet=False, verb
                             need_erase = True
                             if not verbose:
                                 __write('Installing [%s/%s]: %s' % (n, of, name), newline=nl)
-                            
+
                 for h in logger.handlers:
                     h.flush()
             if returnOutput:
@@ -292,6 +292,27 @@ def selinuxEnabled():
         pass
     return False
 
+decorate(traceLog())
+def get_proxy_environment(config):
+    env = {}
+    for proto in ('http', 'https', 'ftp', 'no'):
+        key = '%s_proxy' % proto
+        value = config.get(key)
+        if value:
+            env[key] = value
+    return env
+
+decorate(traceLog())
+def cleanEnv():
+
+    env = {'TERM' : 'vt100',
+           'SHELL' : '/bin/bash',
+           'HOME' : '/builddir',
+           'PATH' : '/usr/bin:/bin:/usr/sbin:/sbin',
+           }
+    #env['LANG'] = os.environ.setdefault('LANG', 'en_US.UTF-8')
+    return env
+
 # logger =
 # output = [1|0]
 # chrootPath
@@ -300,19 +321,22 @@ def selinuxEnabled():
 #
 
 decorate(traceLog())
-def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, uid=None, gid=None, personality=None, quiet=False, verbose=False, *args, **kargs):
-    
+def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, uid=None, gid=None, personality=None, env=None, quiet=False, verbose=False, *args, **kargs):
+
     logger = kargs.get("logger", getLog())
     output = ""
     start = time.time()
     preexec = ChildPreExec(personality, chrootPath, cwd, uid, gid)
-    
+    if env is None:
+        env = cleanEnv()
+
     try:
         child = None
         logger.debug("Executing command: %s" % command)
         child = subprocess.Popen(
             command,
             shell=shell,
+            env=env,
             bufsize=0, close_fds=True,
             stdin=open("/dev/null", "r"),
             stdout=subprocess.PIPE,
@@ -350,7 +374,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
         if returnOutput:
             raise mock_urpm.exception.Error, ("Command failed: \n # %s\n%s" % (command, output), child.returncode)
         else:
-            raise mock_urpm.exception.Error, ("Command failed. See logs for output.\n # %s" % (command,), child.returncode)     
+            raise mock_urpm.exception.Error, ("Command failed. See logs for output.\n # %s" % (command,), child.returncode)
     return output
 
 class ChildPreExec(object):

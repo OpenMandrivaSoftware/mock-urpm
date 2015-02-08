@@ -306,10 +306,10 @@ def setup_default_config_opts(config_opts, unprivUid):
             'TERM': 'vt100',
             'SHELL': '/bin/bash',
             'HOME': '/builddir',
-            'HOSTNAME': 'mock',
+            'HOSTNAME': 'mock-urpm',
             'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
-            'PROMPT_COMMAND': 'printf "\033]0;<mock-chroot>\007<mock-chroot>"',
-            'LANG': 'en_US.UTF-8',
+            'PROMPT_COMMAND': 'printf "<mock-chroot>"; PS1="\W\$"',
+            'LANG': os.environ.setdefault('LANG', 'en_US.UTF-8'),
             }
 
     runtime_plugins = [runtime_plugin
@@ -723,7 +723,6 @@ def main(ret):
     ret["chroot"] = chroot
     ret["config_opts"] = config_opts
     os.umask(002)
-    os.environ["HOME"] = chroot.homedir
 
     # New namespace starting from here
     try:
@@ -758,7 +757,8 @@ def main(ret):
                 arg = '--userspec=%s:%s' % (chroot.chrootuid, chroot.chrootgid)
             else:
                 arg = ''
-            status = os.system("SHELL='/bin/sh' PS1='mock-chroot> ' /usr/sbin/chroot %s %s %s" % (arg, chroot.makeChrootPath(), cmd))
+            os.environ.update(chroot.env)
+            status = os.system("/usr/sbin/chroot %s %s %s" % (arg, chroot.makeChrootPath(), cmd))
             ret['exitStatus'] = os.WEXITSTATUS(status)
 
         finally:
@@ -786,10 +786,9 @@ def main(ret):
         try:
             chroot._mountall()
             if options.unpriv:
-                output = chroot.doChroot(args, shell=shell, returnOutput=True,
-                                uid=chroot.chrootuid, gid=chroot.chrootgid, cwd=options.cwd)
+                output = chroot.doChroot(args, shell=shell, env=chroot.env, returnOutput=True, uid=chroot.chrootuid, gid=chroot.chrootgid, cwd=options.cwd)
             else:
-                output = chroot.doChroot(args, shell=shell, cwd=options.cwd, returnOutput=True)
+                output = chroot.doChroot(args, shell=shell, env=chroot.env, cwd=options.cwd, returnOutput=True)
         finally:
             chroot._umountall()
         chroot.unlockBuildRoot()
