@@ -76,7 +76,12 @@ class Root(object):
             self.chroot_setup_cmd = self.chroot_setup_cmd.split()
         #self.yum_path = '/usr/sbin/urpmi'
         #self.yum_builddep_path = '/usr/bin/yum-builddep'
-        
+
+        self.env = config['environment']
+        proxy_env = mock_urpm.util.get_proxy_environment(config)
+        self.env.update(proxy_env)
+        os.environ.update(proxy_env)
+
         self.urpmi_path = config['urpmi_path']
         self.urpmi_addmedia_path = config['urpmi_addmedia_path']
         self.urpmi_media = config['urpmi_media']
@@ -160,7 +165,7 @@ class Root(object):
         self._unlock_and_rm_chroot()
         self.chrootWasCleaned = True
         self.unlockBuildRoot()
-        
+
     decorate(traceLog())
     def readdrepo(self):
             if self.use_system_media:
@@ -191,8 +196,8 @@ class Root(object):
 
             c = ['urpmi.update', '-a',  '--urpmi-root', self.makeChrootPath()]
             c.extend(self.urpm_options.split())
-            mock_urpm.util.do(c, returnOutput=1, verbose=self.verbose)                
-                
+            mock_urpm.util.do(c, returnOutput=1, verbose=self.verbose)
+
 ###################
     decorate(traceLog())
     def _unlock_and_rm_chroot(self):
@@ -286,7 +291,7 @@ class Root(object):
     decorate(traceLog())
     def _init(self):
         self.state("init")
-        
+
         # NOTE: removed the following stuff vs mock-urpm v0:
         #   --> /etc/ is no longer 02775 (new privs model)
         #   --> no /etc/yum.conf symlink (F7 and above)
@@ -296,7 +301,7 @@ class Root(object):
         mock_urpm.util.mkdirIfAbsent(self.makeChrootPath())
 
         #self.uidManager.dropPrivsTemp()
-        
+
         try:
             mock_urpm.util.mkdirIfAbsent(self.resultdir)
             os.chown(self.resultdir, self.uidManager.unprivUid, -1)
@@ -317,6 +322,9 @@ class Root(object):
 
         # set up plugins:
         self._callHooks('preinit')
+
+        os.environ.update(self.env)
+        self.root_log.debug(os.environ)
 
         # create skeleton dirs
         self.root_log.debug('create skeleton dirs')
@@ -349,19 +357,19 @@ class Root(object):
                 self.root_log.debug("Copying urpmi config...")
                 chrootpath = self.makeChrootPath() + self.urpmi_config_dir
                 shutil.copytree(self.urpmi_config_dir, chrootpath)
-            
+
             self.root_log.debug("Adding media...")
             urpmicmd = [self.urpmi_addmedia_path]
             urpmicmd.extend(self.urpm_options.split())
             urpmicmd.extend(('--urpmi-root', self.makeChrootPath()))
-            
+
             for medium in self.urpmi_media:
                 self.root_log.debug( "Adding medium %s: %s" %(medium, self.urpmi_media[medium]))
                 try:
                     mock_urpm.util.do(urpmicmd + [medium, self.urpmi_media[medium]], returnOutput=1, verbose=self.verbose)
                 except mock_urpm.exception.Error, e:
                     raise mock_urpm.exception.UrpmiError, str(e)
-            
+
             urpmicmd += ['--distrib']
             for medium in self.urpmi_media_distrib:
                 self.root_log.debug( "Adding distrib media from %s" %medium)
@@ -369,14 +377,14 @@ class Root(object):
                     mock_urpm.util.do(urpmicmd + [medium], returnOutput=0, verbose=self.verbose)
                 except mock_urpm.exception.Error, e:
                     raise mock_urpm.exception.UrpmiError, str(e)
-            
+
             c = ['urpmi.update', '-a',  '--urpmi-root', self.makeChrootPath()]
             c.extend(self.urpm_options.split())
             mock_urpm.util.do(c, returnOutput=1, verbose=self.verbose)
-            
-        
-        
-        
+
+
+
+
         # write in yum.conf into chroot
         # always truncate and overwrite (w+)
         ###self.root_log.debug('configure yum')
@@ -524,10 +532,10 @@ class Root(object):
     # bad hack
     # comment out decorator here so we dont get double exceptions in the root log
     #decorate(traceLog())
-    def doChroot(self, command, env="", shell=True, returnOutput=False, *args, **kargs):
+    def doChroot(self, command, env=None, shell=True, returnOutput=False, *args, **kargs):
         """execute given command in root"""
         return mock_urpm.util.do(command, chrootPath=self.makeChrootPath(),
-                            returnOutput=returnOutput, shell=shell, verbose=self.verbose, *args, **kargs )
+                            returnOutput=returnOutput, shell=shell, env=env, verbose=self.verbose, *args, **kargs )
 
     decorate(traceLog())
     def urpmInstall(self, *rpms):
@@ -607,6 +615,7 @@ class Root(object):
             self.doChroot(
                 ["rpm", "-Uvh", "--nodeps", srpmChrootFilename],
                 shell=False,
+                env=self.env,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
                 )
@@ -623,6 +632,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=None,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -647,6 +657,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bb --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=None,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -709,6 +720,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
+                env=self.env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -732,7 +744,7 @@ class Root(object):
 
             # tell caching we are done building
             self._callHooks('postbuild')
-            
+
             if not raiseExc:
                 try:
                     return resultSrpmFile
@@ -778,7 +790,7 @@ class Root(object):
                 return "initialized"
         else:
             return "Chroot directory does not exist"
-    
+
     decorate(traceLog())
     def _mountall(self):
         """mount 'normal' fs like /dev/ /proc/ /sys"""
