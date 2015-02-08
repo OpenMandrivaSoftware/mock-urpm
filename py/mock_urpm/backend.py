@@ -323,9 +323,7 @@ class Root(object):
         # set up plugins:
         self._callHooks('preinit')
 
-        #for key in self.env.keys():
-        #    value = self.env.get(key)
-        #    os.environ[key] = value
+        os.environ.update(self.env)
         self.root_log.debug(os.environ)
 
         # create skeleton dirs
@@ -634,7 +632,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
-                env=self.env,
+                env=None,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -659,7 +657,7 @@ class Root(object):
             self.doChroot(
                 ["bash", "--login", "-c", 'rpmbuild -bb --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
-                env=self.env,
+                env=None,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,

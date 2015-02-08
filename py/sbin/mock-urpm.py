@@ -306,9 +306,8 @@ def setup_default_config_opts(config_opts, unprivUid):
             'TERM': 'vt100',
             'SHELL': '/bin/bash',
             'HOME': '/builddir',
-            'HOSTNAME': 'mock-urpm',
             'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
-            'PROMPT_COMMAND': 'printf "<mock-chroot>"; PS1="\W\$"',
+            'PROMPT_COMMAND': 'printf "mock-chroot"; PS1="@\W>"',
             'LANG': os.environ.setdefault('LANG', 'en_US.UTF-8'),
             }
 
