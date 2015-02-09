@@ -308,7 +308,7 @@ def setup_default_config_opts(config_opts, unprivUid):
             'TERM': 'vt100',
             'SHELL': '/bin/bash',
             'HOME': '/builddir',
-            'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
+            'PATH': '/usr/sbin:/sbin:/usr/bin:/bin',
             'PROMPT_COMMAND': 'PS1="mock-urpm@\W>"',
             'LANG': os.environ.setdefault('LANG', 'en_US.UTF-8'),
             }

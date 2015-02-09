@@ -308,7 +308,7 @@ def cleanEnv():
     env = {'TERM' : 'vt100',
            'SHELL' : '/bin/bash',
            'HOME' : '/builddir',
-           'PATH' : '/usr/bin:/bin:/usr/sbin:/sbin',
+           'PATH' : '/usr/sbin:/sbin:/usr/bin:/bin',
            }
     #env['LANG'] = os.environ.setdefault('LANG', 'en_US.UTF-8')
     return env
