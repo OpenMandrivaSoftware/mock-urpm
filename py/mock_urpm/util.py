@@ -321,7 +321,7 @@ def cleanEnv():
 #
 
 decorate(traceLog())
-def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, uid=None, gid=None, personality=None, env=None, quiet=False, verbose=False, *args, **kargs):
+def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, stdin=None, uid=None, gid=None, personality=None, env=None, quiet=False, verbose=False, *args, **kargs):
 
     logger = kargs.get("logger", getLog())
     output = ""
@@ -333,19 +333,38 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
     try:
         child = None
         logger.debug("Executing command: %s" % command)
-        child = subprocess.Popen(
-            command,
-            shell=shell,
-            env=env,
-            bufsize=0, close_fds=True,
-            stdin=open("/dev/null", "r"),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            preexec_fn = preexec,
-            )
-        # use select() to poll for output so we dont block
-        output = logOutput([child.stdout, child.stderr],
-                           logger, returnOutput, start, timeout, quiet, verbose)
+        if stdin is None:
+            print ("Executing command1: %s" % command)
+            child = subprocess.Popen(
+                command,
+                shell=shell,
+                env=env,
+                bufsize=0, close_fds=True,
+                stdin=open("/dev/null", "r"),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                preexec_fn = preexec,
+                )
+            # use select() to poll for output so we dont block
+            output = logOutput([child.stdout, child.stderr],
+                               logger, returnOutput, start, timeout, quiet, verbose)
+        else:
+            print ("Executing command2: " + str(command))
+            child = subprocess.Popen(
+                command,
+                shell=shell,
+                env=env,
+                bufsize=0, close_fds=True,
+                stdin=None,
+                stdout=None,
+                stderr=None,
+                preexec_fn = preexec,
+                )
+            # use select() to poll for output so we dont block
+            output=None;
+#            output = logOutput([child.stdout, child.stderr],
+#                               logger, returnOutput, start, timeout, quiet, verbose)
+
     except:
         # kill children if they arent done
         if child is not None and child.returncode is None:
@@ -355,6 +374,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
                 os.waitpid(child.pid, 0)
         except:
             pass
+
         raise
 
     # wait until child is done, kill it if it passes timeout

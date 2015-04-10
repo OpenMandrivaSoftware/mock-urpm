@@ -154,6 +154,10 @@ def command_parse(config_opts):
                       default=None, help="Sets kernel personality().")
     parser.add_option("--target", action ="store", dest="rpmbuild_arch",
                       default=None, help="passed to rpmbuild as --target")
+    parser.add_option("--sign", action ="store_true", dest="rpmbuild_sign",
+                      default=None, help="add --sign option to rpmbuild")
+    parser.add_option("--autosign", action ="store", dest="rpmbuild_passphrase",
+                      default=None, help="add --sign option to rpmbuild and automarically provide given passphrase to rpmbuild")
     parser.add_option("-D", "--define", action="append", dest="rpmmacros",
                       default=[], type="string", metavar="'MACRO EXPR'",
                       help="define an rpm macro (may be used more than once)")
@@ -343,6 +347,10 @@ def setup_default_config_opts(config_opts, unprivUid):
     config_opts['use_host_resolv'] = True
     config_opts['target_arch'] = 'i586'
     config_opts['rpmbuild_arch'] = None # <-- None means set automatically from target_arch
+
+    config_opts['rpmbuild_sign'] = None
+    config_opts['rpmbuild_passphrase'] = None
+
     ###config_opts['yum.conf'] = ''
     config_opts['more_buildreqs'] = {}
     config_opts['files'] = {}
@@ -363,6 +371,12 @@ def set_config_opts_per_cmdline(config_opts, options, args):
     # do some other options and stuff
     if options.arch:
         config_opts['target_arch'] = options.arch
+
+    if options.rpmbuild_sign:
+        config_opts['rpmbuild_sign'] = options.rpmbuild_sign
+    if options.rpmbuild_passphrase is not None:
+        config_opts['rpmbuild_passphrase'] = options.rpmbuild_passphrase
+
     if options.rpmbuild_arch:
         config_opts['rpmbuild_arch'] = options.rpmbuild_arch
     elif config_opts['rpmbuild_arch'] is None:

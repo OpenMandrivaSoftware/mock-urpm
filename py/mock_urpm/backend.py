@@ -50,6 +50,8 @@ class Root(object):
 
         self.basedir = os.path.join(config['basedir'], config['root'])
         self.rpmbuild_arch = config['rpmbuild_arch']
+        self.rpmbuild_sign = config['rpmbuild_sign']
+        self.rpmbuild_passphrase = config['rpmbuild_passphrase']
         self._rootdir = os.path.join(self.basedir, 'root')
         self.homedir = config['chroothome']
         self.builddir = os.path.join(self.homedir, 'build')
@@ -532,10 +534,10 @@ class Root(object):
     # bad hack
     # comment out decorator here so we dont get double exceptions in the root log
     #decorate(traceLog())
-    def doChroot(self, command, env=None, shell=True, returnOutput=False, *args, **kargs):
+    def doChroot(self, command, env=None, shell=True, returnOutput=False, passphrase=None, *args, **kargs):
         """execute given command in root"""
         return mock_urpm.util.do(command, chrootPath=self.makeChrootPath(),
-                            returnOutput=returnOutput, shell=shell, env=env, verbose=self.verbose, *args, **kargs )
+                            returnOutput=returnOutput, shell=shell, env=env, stdin=passphrase, verbose=self.verbose, *args, **kargs )
 
     decorate(traceLog())
     def urpmInstall(self, *rpms):
@@ -625,17 +627,24 @@ class Root(object):
             if len(specs) < 1:
                 raise mock_urpm.exception.PkgError, "No Spec file found in srpm: %s" % srpmBasename
 
+            sign_arg = ''
+            if self.rpmbuild_sign is not None or self.rpmbuild_passphrase is not None:
+                sign_arg = '--sign'
+                if self.rpmbuild_passphrase is None:
+                    self.rpmbuild_passphrase = ""
+
             spec = specs[0] # if there's more than one then someone is an idiot
             chrootspec = spec.replace(self.makeChrootPath(), '') # get rid of rootdir prefix
             # Completely/Permanently drop privs while running the following:
 
             self.doChroot(
-                ["bash", "--login", "-c", 'rpmbuild -bs --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
+                ["bash", "--login", "-c", 'rpmbuild -bs ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
                 env=None,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
+                passphrase = self.rpmbuild_passphrase
                 )
 
             rebuiltSrpmFile = glob.glob("%s/%s/SRPMS/*.src.rpm" % (self.makeChrootPath(), self.builddir))
@@ -655,7 +664,7 @@ class Root(object):
             # --nodeps because rpm in the root may not be able to read rpmdb
             # created by rpm that created it (outside of chroot)
             self.doChroot(
-                ["bash", "--login", "-c", 'rpmbuild -bb --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
+                ["bash", "--login", "-c", 'rpmbuild -bb ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
                 shell=False,
                 env=None,
                 logger=self.build_log, timeout=timeout,
