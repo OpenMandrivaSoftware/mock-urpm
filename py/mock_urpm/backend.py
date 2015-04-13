@@ -670,6 +670,7 @@ class Root(object):
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
+                passphrase = self.rpmbuild_passphrase
                 )
 
             bd_out = self.makeChrootPath(self.builddir)
