@@ -322,7 +322,7 @@ def cleanEnv():
 #
 
 decorate(traceLog())
-def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, stdin=None, uid=None, gid=None, personality=None, env=None, quiet=False, verbose=False, *args, **kargs):
+def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True, returnOutput=0, passphrase=None, ask_empty_pass=True, uid=None, gid=None, personality=None, env=None, quiet=False, verbose=False, *args, **kargs):
 
     logger = kargs.get("logger", getLog())
     output = ""
@@ -334,7 +334,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
     try:
         child = None
         logger.debug("Executing command: %s" % command)
-        if stdin is None:
+        if passphrase is None:
             child = subprocess.Popen(
                 command,
                 shell=shell,
@@ -348,11 +348,23 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
             # use select() to poll for output so we dont block
             output = logOutput([child.stdout, child.stderr],
                                logger, returnOutput, start, timeout, quiet, verbose)
+        elif passphrase == "" and ask_empty_pass:
+            child = subprocess.Popen(
+                command,
+                shell=shell,
+                env=env,
+                bufsize=0, close_fds=True,
+                stdin=None,
+                stdout=None,
+                stderr=None,
+                preexec_fn = preexec,
+                )
+            output = None
         else:
             child2 = pexpect.spawn("sudo chroot --userspec=" + str(uid) + ":" + str(gid) + " " + chrootPath + " " + str.join(" ", command))
             child2.logfile = sys.stdout
             child2.expect("Enter pass phrase:")
-            child2.sendline(stdin)
+            child2.sendline(passphrase)
             child2.wait()
             child = None
             output="";

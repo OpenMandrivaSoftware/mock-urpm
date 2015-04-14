@@ -527,17 +527,17 @@ class Root(object):
             if devMntCmd not in self.mountCmds:
                 self.mountCmds.append(devMntCmd)
 
-        if mock_urpm.util.cmpKernelEVR(kver, '2.6.29') >= 0:
-            os.unlink(self.makeChrootPath('/dev/ptmx'))
-            os.symlink("pts/ptmx", self.makeChrootPath('/dev/ptmx'))
+        os.unlink(self.makeChrootPath('/dev/ptmx'))
+        os.symlink("pts/ptmx", self.makeChrootPath('/dev/ptmx'))
 
     # bad hack
     # comment out decorator here so we dont get double exceptions in the root log
     #decorate(traceLog())
-    def doChroot(self, command, env=None, shell=True, returnOutput=False, passphrase=None, *args, **kargs):
+    def doChroot(self, command, env=None, shell=True, returnOutput=False, passphrase=None, ask_empty_pass=True, *args, **kargs):
         """execute given command in root"""
         return mock_urpm.util.do(command, chrootPath=self.makeChrootPath(),
-                            returnOutput=returnOutput, shell=shell, env=env, stdin=passphrase, verbose=self.verbose, *args, **kargs )
+                            returnOutput=returnOutput, shell=shell, env=env, passphrase=passphrase, ask_empty_pass=ask_empty_pass,
+                            verbose=self.verbose, *args, **kargs )
 
     decorate(traceLog())
     def urpmInstall(self, *rpms):
@@ -628,15 +628,17 @@ class Root(object):
                 raise mock_urpm.exception.PkgError, "No Spec file found in srpm: %s" % srpmBasename
 
             sign_arg = ''
+            ask_empty_pass = False
             if self.rpmbuild_sign is not None or self.rpmbuild_passphrase is not None:
                 sign_arg = '--sign'
                 if self.rpmbuild_passphrase is None:
                     self.rpmbuild_passphrase = ""
+                    ask_empty_pass = True
 
             spec = specs[0] # if there's more than one then someone is an idiot
             chrootspec = spec.replace(self.makeChrootPath(), '') # get rid of rootdir prefix
 
-            if self.rpmbuild_passphrase is None:
+            if self.rpmbuild_passphrase is None or (self.rpmbuild_passphrase == "" and ask_empty_pass):
                 cmd = ["bash", "--login", "-c", 'rpmbuild -bs ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
             else:
                 cmd = ['rpmbuild -bs ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
@@ -650,7 +652,8 @@ class Root(object):
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
-                passphrase = self.rpmbuild_passphrase
+                passphrase = self.rpmbuild_passphrase,
+                ask_empty_pass = ask_empty_pass
                 )
 
             rebuiltSrpmFile = glob.glob("%s/%s/SRPMS/*.src.rpm" % (self.makeChrootPath(), self.builddir))
@@ -667,7 +670,7 @@ class Root(object):
             # tell caching we are building
             self._callHooks('prebuild')
 
-            if self.rpmbuild_passphrase is None:
+            if self.rpmbuild_passphrase is None or (self.rpmbuild_passphrase == "" and ask_empty_pass):
                 cmd = ["bash", "--login", "-c", 'rpmbuild -bb ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
             else:
                 cmd = ['rpmbuild -bb ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
@@ -681,7 +684,8 @@ class Root(object):
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
-                passphrase = self.rpmbuild_passphrase
+                passphrase = self.rpmbuild_passphrase,
+                ask_empty_pass = ask_empty_pass
                 )
 
             bd_out = self.makeChrootPath(self.builddir)
