@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import time
 import errno
+import pexpect
 import re
 import sys
 from signal import SIGTERM
@@ -334,7 +335,6 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
         child = None
         logger.debug("Executing command: %s" % command)
         if stdin is None:
-            print ("Executing command1: %s" % command)
             child = subprocess.Popen(
                 command,
                 shell=shell,
@@ -349,21 +349,13 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
             output = logOutput([child.stdout, child.stderr],
                                logger, returnOutput, start, timeout, quiet, verbose)
         else:
-            print ("Executing command2: " + str(command))
-            child = subprocess.Popen(
-                command,
-                shell=shell,
-                env=env,
-                bufsize=0, close_fds=True,
-                stdin=None,
-                stdout=None,
-                stderr=None,
-                preexec_fn = preexec,
-                )
-            # use select() to poll for output so we dont block
-            output=None;
-#            output = logOutput([child.stdout, child.stderr],
-#                               logger, returnOutput, start, timeout, quiet, verbose)
+            child2 = pexpect.spawn("sudo chroot --userspec=" + str(uid) + ":" + str(gid) + " " + chrootPath + " " + str.join(" ", command))
+            child2.logfile = sys.stdout
+            child2.expect("Enter pass phrase:")
+            child2.sendline(stdin)
+            child2.wait()
+            child = None
+            output="";
 
     except:
         # kill children if they arent done
@@ -379,7 +371,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
 
     # wait until child is done, kill it if it passes timeout
     niceExit=1
-    while child.poll() is None:
+    while child is not None and child.poll() is None:
         if (time.time() - start)>timeout and timeout!=0:
             niceExit=0
             os.killpg(child.pid, 15)
@@ -389,8 +381,9 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
     if not niceExit:
         raise commandTimeoutExpired, ("Timeout(%s) expired for command:\n # %s\n%s" % (timeout, command, output))
 
-    logger.debug("Child returncode was: %s" % str(child.returncode))
-    if raiseExc and child.returncode:
+    if child is not None:
+        logger.debug("Child returncode was: %s" % str(child.returncode))
+    if raiseExc and child is not None and child.returncode:
         if returnOutput:
             raise mock_urpm.exception.Error, ("Command failed: \n # %s\n%s" % (command, output), child.returncode)
         else:

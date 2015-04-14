@@ -635,10 +635,16 @@ class Root(object):
 
             spec = specs[0] # if there's more than one then someone is an idiot
             chrootspec = spec.replace(self.makeChrootPath(), '') # get rid of rootdir prefix
+
+            if self.rpmbuild_passphrase is None:
+                cmd = ["bash", "--login", "-c", 'rpmbuild -bs ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
+            else:
+                cmd = ['rpmbuild -bs ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
+
             # Completely/Permanently drop privs while running the following:
 
             self.doChroot(
-                ["bash", "--login", "-c", 'rpmbuild -bs ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
+                cmd,
                 shell=False,
                 env=None,
                 logger=self.build_log, timeout=timeout,
@@ -661,10 +667,15 @@ class Root(object):
             # tell caching we are building
             self._callHooks('prebuild')
 
+            if self.rpmbuild_passphrase is None:
+                cmd = ["bash", "--login", "-c", 'rpmbuild -bb ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
+            else:
+                cmd = ['rpmbuild -bb ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
+
             # --nodeps because rpm in the root may not be able to read rpmdb
             # created by rpm that created it (outside of chroot)
             self.doChroot(
-                ["bash", "--login", "-c", 'rpmbuild -bb ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)],
+                cmd,
                 shell=False,
                 env=None,
                 logger=self.build_log, timeout=timeout,
@@ -675,8 +686,9 @@ class Root(object):
 
             bd_out = self.makeChrootPath(self.builddir)
             rpms = glob.glob(bd_out + '/RPMS/*.rpm')
+            rpms_arch = glob.glob(bd_out + '/RPMS/*/*.rpm')
             srpms = glob.glob(bd_out + '/SRPMS/*.rpm')
-            packages = rpms + srpms
+            packages = rpms + srpms + rpms_arch
 
             self.root_log.debug("Copying packages to result dir")
             for item in packages:
