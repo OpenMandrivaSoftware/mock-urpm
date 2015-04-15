@@ -632,7 +632,7 @@ class Root(object):
             env = None
             if self.rpmbuild_sign is not None or self.rpmbuild_passphrase is not None:
                 sign_arg = '--sign'
-                env = ['HOME=/builddir']
+                env = None
                 if self.rpmbuild_passphrase is None:
                     self.rpmbuild_passphrase = ""
                     ask_empty_pass = True
