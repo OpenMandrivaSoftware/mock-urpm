@@ -361,6 +361,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
                 )
             output = None
         else:
+            os.system('sudo chroot ' + chrootPath + ' cp builddir/.rpmmacros root/')
             child2 = pexpect.spawn("sudo chroot --userspec=" + str(uid) + ":" + str(gid) + " " + chrootPath + " " + str.join(" ", command))
             child2.logfile = sys.stdout
             child2.expect("Enter pass phrase:")
