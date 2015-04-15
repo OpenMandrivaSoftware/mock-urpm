@@ -629,8 +629,10 @@ class Root(object):
 
             sign_arg = ''
             ask_empty_pass = False
+            env = None
             if self.rpmbuild_sign is not None or self.rpmbuild_passphrase is not None:
                 sign_arg = '--sign'
+                env = ['HOME=/builddir']
                 if self.rpmbuild_passphrase is None:
                     self.rpmbuild_passphrase = ""
                     ask_empty_pass = True
@@ -641,14 +643,14 @@ class Root(object):
             if self.rpmbuild_passphrase is None or (self.rpmbuild_passphrase == "" and ask_empty_pass):
                 cmd = ["bash", "--login", "-c", 'rpmbuild -bs ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
             else:
-                cmd = ['rpmbuild -bs ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
+                cmd = ['rpmbuild -bs ' + sign_arg + ' --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
 
             # Completely/Permanently drop privs while running the following:
 
             self.doChroot(
                 cmd,
                 shell=False,
-                env=None,
+                env=env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
@@ -673,14 +675,14 @@ class Root(object):
             if self.rpmbuild_passphrase is None or (self.rpmbuild_passphrase == "" and ask_empty_pass):
                 cmd = ["bash", "--login", "-c", 'rpmbuild -bb ' + sign_arg + ' --target %s --nodeps %s' % (self.rpmbuild_arch, chrootspec)]
             else:
-                cmd = ['rpmbuild -bb ' + sign_arg + ' --define "_topdir /builddir/build" --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
+                cmd = ['rpmbuild -bb ' + sign_arg + ' --target %s --nodeps /%s' % (self.rpmbuild_arch, chrootspec)]
 
             # --nodeps because rpm in the root may not be able to read rpmdb
             # created by rpm that created it (outside of chroot)
             self.doChroot(
                 cmd,
                 shell=False,
-                env=None,
+                env=env,
                 logger=self.build_log, timeout=timeout,
                 uid=self.chrootuid,
                 gid=self.chrootgid,
