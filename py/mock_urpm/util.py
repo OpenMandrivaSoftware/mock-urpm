@@ -367,8 +367,7 @@ def do(command, shell=False, chrootPath=None, cwd=None, timeout=0, raiseExc=True
             child2.expect("Enter pass phrase:")
             child2.sendline(passphrase)
             child2.expect(pexpect.EOF,timeout=None)
-            child = None
-            output="";
+            output=child2.before
 
     except:
         # kill children if they arent done
