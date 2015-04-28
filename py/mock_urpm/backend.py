@@ -527,8 +527,9 @@ class Root(object):
             if devMntCmd not in self.mountCmds:
                 self.mountCmds.append(devMntCmd)
 
-        os.unlink(self.makeChrootPath('/dev/ptmx'))
-        os.symlink("pts/ptmx", self.makeChrootPath('/dev/ptmx'))
+        if mock_urpm.util.cmpKernelEVR(kver, '2.6.29') >= 0:
+            os.unlink(self.makeChrootPath('/dev/ptmx'))
+            os.symlink("pts/ptmx", self.makeChrootPath('/dev/ptmx'))
 
     # bad hack
     # comment out decorator here so we dont get double exceptions in the root log
