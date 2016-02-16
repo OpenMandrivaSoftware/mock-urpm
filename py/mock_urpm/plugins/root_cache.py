@@ -98,7 +98,7 @@ class RootCache(object):
             self.state("unpacking root cache")
             self._rootCacheLock()
             mock_urpm.util.do(
-                ["tar"] + self.compressArgs + ["-xf", self.rootCacheFile, "-C", self.rootObj.makeChrootPath()],
+                ["gtar"] + self.compressArgs + ["-xf", self.rootCacheFile, "-C", self.rootObj.makeChrootPath()],
                 shell=False
                 )
             for dir in self.exclude_dirs:
@@ -127,7 +127,7 @@ class RootCache(object):
                 self.state("creating cache")
                 try:
                     mock_urpm.util.do(
-                        ["tar"] + self.compressArgs + ["-cf", self.rootCacheFile,
+                        ["gtar"] + self.compressArgs + ["-cf", self.rootCacheFile,
                                                        "-C", self.rootObj.makeChrootPath()] +
                         self.exclude_tar_cmds + ["."],
                         shell=False
