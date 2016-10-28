@@ -500,6 +500,7 @@ class Root(object):
         os.symlink("/proc/self/fd/0", self.makeChrootPath("dev/stdin"))
         os.symlink("/proc/self/fd/1", self.makeChrootPath("dev/stdout"))
         os.symlink("/proc/self/fd/2", self.makeChrootPath("dev/stderr"))
+        os.symlink("/dev/loop-control", self.makeChrootPath("dev/loop-control"))
 
         os.chown(self.makeChrootPath('dev/tty'), pwd.getpwnam('root')[2], grp.getgrnam('tty')[2])
         os.chown(self.makeChrootPath('dev/ptmx'), pwd.getpwnam('root')[2], grp.getgrnam('tty')[2])
