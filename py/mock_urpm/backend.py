@@ -205,9 +205,16 @@ class Root(object):
     def _unlock_and_rm_chroot(self):
         if not os.path.exists(self.basedir):
             return
+
         t = self.basedir + ".tmp"
         if os.path.exists(t):
+            for cmd in reversed(self.umountCmds):
+                try:
+                    mock_urpm.util.do(cmd, raiseExc=1, shell=True, verbose=self.verbose)
+                except mock_urpm.exception.Error, e:
+                    pass
             mock_urpm.util.rmtree(t, selinux=self.selinux)
+
         os.rename(self.basedir, t)
         self.buildrootLock.close()
         try:
